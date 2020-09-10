@@ -1,0 +1,90 @@
+= Openshift operator: Version selector
+
+This repository allows you to deploy an operator using a specific version of the images.
+
+== What is an operator
+
+An Operator is a method of packaging, deploying and managing a Kubernetes-native application. A Kubernetes-native application is an application that is both deployed on Kubernetes and managed using the Kubernetes APIs and kubectl tooling [1].
+
+The **Operator Lifecycle Manager (OLM)** is the backplane that facilitates management of operators on a Kubernetes cluster. Operators that provide popular applications as a service are going to be long-lived workloads with, potentially, lots of permissions on the cluster.
+
+A **channel** defines a stream of updates for an Operator and is used to roll out updates for subscribers. The head points to the latest version of that channel. For example, a stable channel would have all stable versions of an Operator arranged from the earliest to the latest. An Operator can have several channels, and a Subscription binding to a certain channel would only look for updates in that channel.
+
+As stated in this Red Hat KCS [2], only `latest` version available for any update `channel` can be installed from Operator Hub. The scripts in this repository provide some tools to install the version you need manually.
+
+
+[1] https://www.openshift.com/learn/topics/operators 
+
+[2] https://access.redhat.com/solutions/5339351
+
+== Prerequisites
+
+Before starting, install the `jq` tool in your system. https://stedolan.github.io/jq/[`jq`] is like sed for JSON data - you can use it to slice and filter and map and transform structured data with the same ease that sed, awk, grep and friends let you play with text. To install `jq` in execute: 
+
+[source, bash]
+----
+# Fedora
+sudo dnf install jq
+
+# Ubuntu
+sudo apt-get install jq
+----
+
+== Check installed version of an operator
+
+If you have an operator installed in your cluster and you want to check the exact version of the components installed you may check the status version of its PackageManifest.
+
+For example, the following command shows the latest `digest` of the images that are part of the cluster-logging operator for OCP 4.5:
+
+[source, bash]
+----
+$ oc get PackageManifest cluster-logging -o json | jq '.status.channels[] | select(.name == "4.5") | .currentCSVDesc.relatedImages'
+
+[
+  "registry.redhat.io/openshift4/ose-cluster-logging-operator@sha256:9cd006c2661d23c19d2783368fc60d632add2a8199c99bda8fd8b753731f461e",
+  "registry.redhat.io/openshift4/ose-logging-curator5@sha256:ebdadce51f4dbde5ea1c8ba17df3d63bc483e92aba6947e620af1cc6433de6b0",
+  "registry.redhat.io/openshift4/ose-logging-fluentd@sha256:9f3cb262dfe2ea29cf03d74c129a0f6740df2fbb1e9758475622e097c982beb1"
+]
+----
+
+== How to install a custom version
+
+So, as the problem is that once you subscribe a channel, you are only allowed to download the latest version, we are going to use the https://docs.openshift.com/container-platform/4.5/operators/olm-restricted-networks.html[installation mechanism for restricted networks] for our cluster.
+
+
+
+
+
+
+
+
+
+
+
+=== Getting operator versions
+
+
+
+
+
+
+
+
+
+== Annex: Access the OCP 4.5 registry from outside the cluster
+
+In normal installations you usually do not expose the registry outside to the cluster. In OCP 4.X, you can expose the cluster patching the https://docs.openshift.com/container-platform/4.5/registry/configuring-registry-operator.html[Image Registry Operator] instance using the following command:
+
+[source, bash]
+----
+oc patch configs.imageregistry.operator.openshift.io/cluster --patch '{"spec":{"defaultRoute":true}}' --type=merge
+----
+
+Now, you can log in to the registry using podman in the following command
+[source,bash]
+----
+# Login to the cluster registry using tls-verify false
+podman login -u $(oc whoami) -p $(oc whoami -t) --tls-verify=false $(oc get route default-route -n openshift-image-registry --template='{{ .spec.host }}')
+----
+
+For more information, check the following https://docs.openshift.com/container-platform/4.5/registry/securing-exposing-registry.html[link].

@@ -26,7 +26,7 @@ As stated in this Red Hat KCS [2], only `latest` version available for any updat
 
 == Prerequisites
 
-Before starting, install the `jq` tool in your system. https://stedolan.github.io/jq/[`jq`] is like sed for JSON data - you can use it to slice and filter and map and transform structured data with the same ease that sed, awk, grep and friends let you play with text. To install `jq` in execute: 
+Before starting, install the `jq` tool in your system. https://stedolan.github.io/jq/[JQ] is like sed for JSON data - you can use it to slice and filter and map and transform structured data with the same ease that sed, awk, grep and friends let you play with text. To install `jq` in execute: 
 
 [source, bash]
 ----
@@ -35,6 +35,9 @@ sudo dnf install jq
 
 # Ubuntu
 sudo apt-get install jq
+
+# MacOS
+brew install jq
 ----
 
 == Check installed version of an operator
@@ -58,20 +61,73 @@ $ oc get PackageManifest cluster-logging -o json | jq '.status.channels[] | sele
 
 So, as the problem is that once you subscribe a channel, you are only allowed to download the latest version, we are going to use the https://docs.openshift.com/container-platform/4.5/operators/olm-restricted-networks.html[installation mechanism for restricted networks] for our cluster.
 
+Basically, this process consists of three main steps: Building an Operator catalog image, disabling Operator Hub default sources, and mirroring the versions defined in step 1.  
 
-=== Building an Operator catalog image
 
-Using the oc adm catalog build command, cluster administrators can create an Operator catalog image. An Operator catalog image is:
+=== Step 1: Building an Operator catalog image
+
+Using the `oc adm catalog build` command, cluster administrators can create an Operator catalog image. An Operator catalog image is:
 
 * a point-in-time export of an App Registry type catalog’s content.
 * the result of converting an App Registry catalog to a container image type catalog.
 * an immutable artifact.
 
 
-Building an Operator catalog image
+To simplify all the process, log in to the Red Hat registry and the cluster internal registry at the beginning.
+[source, bash]
+----
+# Red Hat registry
+podman login registry.redhat.io
+
+# Login to the cluster registry using tls-verify false
+podman login -u $(oc whoami) -p $(oc whoami -t) --tls-verify=false $(oc get route default-route -n openshift-image-registry --template='{{ .spec.host }}')
+----
 
 
+[source, bash]
+----
+oc adm catalog build \
+    --appregistry-org redhat-operators \
+    --from=registry.redhat.io/openshift4/ose-operator-registry:v4.5 \
+    --filter-by-os="linux/amd64" \
+    --to=default-route-openshift-image-registry.apps.apps.sandbox1553.opentlc.com/olm/redhat-operators:v1 \
+    -a ${XDG_RUNTIME_DIR}/containers/auth.json \
+    --insecure 
+----
 
+
+=== Step 2: Disable the default OperatorSources
+
+Disable the default OperatorSources by adding disableAllDefaultSources: true to the spec:
+[source, bash]
+----
+oc patch OperatorHub cluster --type json -p '[{"op": "add", "path": "/spec/disableAllDefaultSources", "value": true}]'
+----
+
+
+=== Step 3: Mirror image content to the mirror registry
+
+First, only generate the manifests required for mirroring, but do not actually mirror the image content to a registry yet.
+[source, bash]
+----
+oc adm catalog mirror \
+    <registry_host_name>:<port>/olm/redhat-operators:v1 \
+    default-route-openshift-image-registry.apps.apps.sandbox1553.opentlc.com \
+    -a ${XDG_RUNTIME_DIR}/containers/auth.json \
+    --insecure \
+    --filter-by-os="linux/amd64" \
+    --manifests-only
+----
+
+Second, perform some filtering in the generated file.
+
+Third, mirror the images;
+[source, bash]
+----
+oc image mirror \
+    [-a ${REG_CREDS}] \
+    -f ./redhat-operators-manifests/mapping.txt
+----
 
 
 
@@ -95,11 +151,10 @@ In normal installations you usually do not expose the registry outside to the cl
 oc patch configs.imageregistry.operator.openshift.io/cluster --patch '{"spec":{"defaultRoute":true}}' --type=merge
 ----
 
-Now, you can log in to the registry using podman in the following command
+Now, you can log in to the registry using the following URL:
 [source,bash]
 ----
-# Login to the cluster registry using tls-verify false
-podman login -u $(oc whoami) -p $(oc whoami -t) --tls-verify=false $(oc get route default-route -n openshift-image-registry --template='{{ .spec.host }}')
+oc get route default-route -n openshift-image-registry --template='{{ .spec.host }}'
 ----
 
 For more information, check the following https://docs.openshift.com/container-platform/4.5/registry/securing-exposing-registry.html[link].

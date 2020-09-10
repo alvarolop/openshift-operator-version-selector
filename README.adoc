@@ -1,4 +1,10 @@
 = Openshift operator: Version selector
+// Create TOC wherever needed
+:toc: macro
+:sectanchors:
+// Create the Table of contents here
+toc::[]
+:imagesdir: docs/images
 
 This repository allows you to deploy an operator using a specific version of the images.
 
@@ -47,13 +53,21 @@ $ oc get PackageManifest cluster-logging -o json | jq '.status.channels[] | sele
 ]
 ----
 
-== How to install a custom version
+== Using a customized Operator catalog
 
 So, as the problem is that once you subscribe a channel, you are only allowed to download the latest version, we are going to use the https://docs.openshift.com/container-platform/4.5/operators/olm-restricted-networks.html[installation mechanism for restricted networks] for our cluster.
 
 
+=== Building an Operator catalog image
+
+Using the oc adm catalog build command, cluster administrators can create an Operator catalog image. An Operator catalog image is:
+
+* a point-in-time export of an App Registry type catalog’s content.
+* the result of converting an App Registry catalog to a container image type catalog.
+* an immutable artifact.
 
 
+Building an Operator catalog image
 
 
 

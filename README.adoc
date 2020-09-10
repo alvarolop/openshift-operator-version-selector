@@ -1,5 +1,6 @@
 = Openshift operator: Version selector
-// Create TOC wherever needed
+Álvaro López Medina <alopezme@redhat.com>
+v1.0, 2020-09
 :toc: macro
 :sectanchors:
 // Create the Table of contents here

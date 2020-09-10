@@ -1,0 +1,9 @@
+{
+  "operators": [
+    "cluster-logging",
+    "prometheus"
+  ],
+  "openshift": {
+    "version": 4.5
+  }
+}
